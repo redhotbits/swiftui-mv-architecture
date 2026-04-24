@@ -59,4 +59,4 @@ Download the latest `swiftui-mv-architecture.skill` from [Releases](../../releas
 
 ## Credits
 
-Architecture and articles by [Lazar Otasevic](https://github.com/sisoje) — [Medium](https://medium.com/@redhotbits). Skill packaging by Mirko Tomic.
+Architecture and articles by [Lazar Otasevic](https://github.com/sisoje) — [Medium](https://medium.com/@redhotbits). Skill packaging by [Mirko Tomic](https://github.com/mirkokg).
