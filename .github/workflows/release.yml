@@ -1,0 +1,22 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Zip skill
+        run: zip -r swiftui-mv-architecture.skill swiftui-mv-architecture/ -x "**/.DS_Store"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: swiftui-mv-architecture.skill
