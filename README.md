@@ -22,6 +22,9 @@ The premise is simple. `SwiftUI.View` is not a UI object — it's a protocol tha
 - Logic as stateless structs of closures (capabilities) — composable, trivially testable, no mocking framework needed
 - `@Environment` for dependency injection — compile-time, hierarchical, works in previews for free
 - Custom `DynamicProperty` for external state — stays inside SwiftUI's graph so every property wrapper keeps working
+- Apple-style styleable components — encode visual variants as styles, not forks; one component, many looks
+- Mechanical code-style rules and a hard `#Preview` requirement on every view — uniform output across humans and LLMs
+- A narrow, explicit carve-out for when a class (or `@Observable`) is genuinely the right tool — and when it isn't
 - No ViewModels. No reducers. No action enums. No `[weak self]`.
 
 ---
@@ -40,14 +43,21 @@ Purely functional SwiftUI has low entropy of valid programs — two developers s
 
 | File | Contents |
 |---|---|
-| `SKILL.md` | Core mental model, default patterns, anti-patterns, triage guide |
+| `SKILL.md` | Mental model, "scan first" router, default patterns, view-init purity, file/styling rules, anti-patterns, class carve-out, triage |
+| `references/state-ownership-decisions.md` | Decision tree for `@State` vs `@Binding` vs `@Environment` vs custom `DynamicProperty` |
 | `references/custom-dynamic-properties.md` | Building custom sources of truth inside SwiftUI's graph |
 | `references/dependency-injection.md` | `@Environment` + capability structs vs protocol/mock |
 | `references/capability-pattern.md` | Closures as data — composition, ad-hoc polymorphism, when to use a protocol |
 | `references/refactoring-from-mvvm.md` | Step-by-step migrations with before/after code |
 | `references/why-not-tca.md` | TCA critique and full concept mapping to MV equivalents |
 | `references/testing-views.md` | Testing SwiftUI views natively, without ViewModels |
-| `references/state-ownership-decisions.md` | Decision tree for `@State` vs `@Binding` vs `@Environment` vs custom `DynamicProperty` |
+| `references/file-organization.md` | One file per view, one folder per feature, `Common/` for shared — with worked example |
+| `references/app-entry-point.md` | `@main App` defaults and `@UIApplicationDelegateAdaptor` cleanup |
+| `references/code-style.md` | Six mechanical formatting rules — read before writing or reviewing any SwiftUI code |
+| `references/style-protocols.md` | Reusable styles for built-in views (`ButtonStyle`, `ToggleStyle`, …) |
+| `references/custom-component-styling.md` | Making your own components styleable like Apple's `Button`/`Toggle`/`GroupBox` |
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ---
 
