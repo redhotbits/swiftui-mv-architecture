@@ -287,7 +287,7 @@ Forking is the right answer only when the **structure** itself changes — diffe
 
 Extract a component to `Common/` (or a feature sub-folder when scoped) once **two or more screens** need the same combination of structure + behaviour. A component used in one place stays where it is used. Premature extraction forces an API before the second use case has revealed what is actually variable.
 
-See `references/custom-component-styling.md` for the full styleable-component pattern: the five pieces, the `DynamicProperty` + `resolve(_:)` trick that lets styles read `@Environment`, composable styles via configuration initialisers, cross-component `ModifiedStyle` reuse, and modal-propagation caveats.
+See `references/custom-component-styling.md` for the full styleable-component pattern: the five pieces (configuration / protocol / environment key / modifier / shorthand), the `DynamicProperty` + `resolve(_:)` trick that lets styles read `@Environment`, default style, file layout, and modal-propagation caveats.
 
 ## Reusable styles (built-in views)
 
@@ -316,11 +316,19 @@ Common/Styles/
 └── Label/    ← IconLabelStyle
 ```
 
-**File contents (in order):** doc comment → style struct → constrained `static var`/`static func` shorthand on the protocol so call sites read `.card`, not `CardButtonStyle()`. Use `static func` when the style takes runtime parameters (e.g. `.chip(isSelected: …)`), `static var` otherwise.
+**File contents (in order):** doc comment → style struct → constrained `static var`/`static func` shorthand on the protocol so call sites read `.myStyle`, not `MyStyle()`. Use `static func` when the style takes parameters, `static var` otherwise. **This enum-like dot syntax is Apple's official recommendation** (since Swift 5.5 / SE-0299) — always prefer it to constructing the style type directly.
 
-The styleable built-in views with a customisable `makeBody` include: `ButtonStyle`, `PrimitiveButtonStyle`, `ToggleStyle`, `LabelStyle`, `ProgressViewStyle`, `GaugeStyle`, `GroupBoxStyle`, `DisclosureGroupStyle`, `MenuStyle`, `ControlGroupStyle`, `FormStyle`, `LabeledContentStyle`, `NavigationSplitViewStyle`, `DatePickerStyle`, `TextEditorStyle`, `TableStyle`, `ProductViewStyle`, `SubscriptionStoreControlStyle`.
+```swift
+// ❌ type initializer (pre-Swift 5.5 style)
+.textFieldStyle(RoundedBorderTextFieldStyle())
 
-See `references/style-protocols.md` for the full protocol table, the implementation template (with `CardButtonStyle` worked example), the parameterised-style pattern, and the rules for using `@Environment` inside a built-in style.
+// ✅ enum-like shorthand (Apple's recommendation)
+.textFieldStyle(.roundedBorder)
+```
+
+See `references/style-protocols.md` for the full list of customisable style protocols (`ButtonStyle`, `ToggleStyle`, …), the list of non-customisable styles (where you can only choose between Apple's concrete styles, not write your own), the `MyLabelStyle` worked example showing both `static var` and `static func` shorthands, and the rules for using `@Environment` inside a built-in style.
+
+This skill matches what stock SwiftUI does — single `makeBody` styles applied via dot syntax. **Style composition** (modifying an existing style by wrapping it) is intentionally not part of this skill, because it isn't a pattern Apple uses in stock SwiftUI.
 
 ## Code style
 
@@ -484,4 +492,4 @@ When the task touches one of these areas, read the corresponding file before wri
 
 **Components & styling:**
 - `references/style-protocols.md` — Reusable styles for built-in views (`ButtonStyle`, `ToggleStyle`, `LabelStyle`, …): folder layout, implementation template, parameterised styles, environment access.
-- `references/custom-component-styling.md` — Making your own components styleable like Apple's: five-piece pattern, `DynamicProperty` + `resolve(_:)` trick, configuration initialisers, composable styles, modal-propagation caveat.
+- `references/custom-component-styling.md` — Making your own components styleable like Apple's: five-piece pattern (configuration / protocol / environment key / modifier / shorthand), `DynamicProperty` + `resolve(_:)` trick, default style, file layout, modal-propagation caveat. Stock-SwiftUI shape only — no composable styles.

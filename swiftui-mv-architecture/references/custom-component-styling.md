@@ -6,11 +6,12 @@ Apple's built-in styleable views (`Button`, `Toggle`, `Label`, `GroupBox`, `Prog
 - Can be styled at the screen, feature, or app level and propagates down the view hierarchy.
 - Is locally overridable — any subtree can swap to a different style.
 - Can read `@Environment` values inside the style (`isEnabled`, `controlSize`, `colorScheme`, `tint`, …).
-- Composes with other styles (modify an existing style instead of rewriting it).
 
-This file covers the full pattern: configuration, protocol, environment, modifier, shorthand, the `DynamicProperty` resolution trick, configuration initialisers, composable styles, and modal-presentation propagation.
+This file covers the full pattern: configuration, protocol, environment, modifier, shorthand, the `DynamicProperty` resolution trick, default style, file layout, and modal-presentation propagation.
 
 The running example is a `RangeSlider<Label>` component. The same pattern applies to any custom view.
+
+**Note on composition.** This skill matches stock SwiftUI's shape: each style is a self-contained `makeBody`, applied via dot syntax. **Style composition** — modifying an existing style by wrapping it, maintaining a stack of styles, or sharing a `ViewModifier` across multiple style protocols — is intentionally not part of this pattern. Apple does not use composition in stock SwiftUI. If a new look needs more than the current style provides, write a new style.
 
 ---
 
@@ -218,112 +219,7 @@ struct DefaultRangeSliderStyle: RangeSliderStyle {
 
 ---
 
-## 5. Composable styles — modifying an existing style
-
-Often a new visual variant is "the existing style, plus one more thing" (a different font, a custom border, a shimmer). Do not copy the existing style — modify it.
-
-The mechanism is a **configuration initialiser** on the component itself, mirroring `Button(_:)` taking a `PrimitiveButtonStyleConfiguration`. The new style instantiates the component from its configuration and applies the standard style modifier on top:
-
-```swift
-extension RangeSlider where Label == RangeSliderStyleConfiguration.Label {
-    init(_ configuration: RangeSliderStyleConfiguration) {
-        self._range = configuration.$range
-        self.bounds = configuration.bounds
-        self.label = configuration.label
-    }
-}
-
-struct CardRangeSliderStyle: RangeSliderStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        RangeSlider(configuration)
-            .padding()
-            .background(.regularMaterial, in: .rect(cornerRadius: 16))
-    }
-}
-```
-
-Used like Apple's modified styles:
-
-```swift
-RangeSlider(range: $range, in: 0...100) { Text("Range") }
-    .rangeSliderStyle(CardRangeSliderStyle())
-    .rangeSliderStyle(.vertical)
-```
-
-The card style wraps the vertical style. The order matters — the *inner* (lower in the modifier chain) style runs first.
-
-### Style stack
-
-A naive single-environment-value implementation breaks composition: the second `.rangeSliderStyle(...)` overwrites the first, and `RangeSlider(configuration)` inside the card style would re-read the same card style and infinite-loop.
-
-The fix is to maintain a stack of styles in the environment, push on `.rangeSliderStyle`, and pop after `makeBody` runs. Skip this until the component genuinely needs composable styles — most do not.
-
-```swift
-private struct RangeSliderStyleStackKey: EnvironmentKey {
-    static var defaultValue: [any RangeSliderStyle] = []
-}
-
-extension EnvironmentValues {
-    var rangeSliderStyleStack: [any RangeSliderStyle] {
-        get { self[RangeSliderStyleStackKey.self] }
-        set { self[RangeSliderStyleStackKey.self] = newValue }
-    }
-
-    var rangeSliderStyle: any RangeSliderStyle {
-        rangeSliderStyleStack.last ?? DefaultRangeSliderStyle()
-    }
-}
-
-extension View {
-    func rangeSliderStyle(_ style: some RangeSliderStyle) -> some View {
-        transformEnvironment(\.rangeSliderStyleStack) { $0.append(style) }
-    }
-}
-```
-
-In the component, pop after rendering:
-
-```swift
-AnyView(style.resolve(configuration: configuration))
-    .transformEnvironment(\.rangeSliderStyleStack) { stack in
-        if !stack.isEmpty { stack.removeLast() }
-    }
-```
-
-This is exactly how Apple's built-in styles compose. Read the *Composable Styles* technique once, then use this skeleton when needed.
-
----
-
-## 6. Reusable style modifiers across components
-
-A modification that applies to multiple components (font override, label-style override, shimmer effect, …) belongs in a `ViewModifier`, then attached via a generic `ModifiedStyle` wrapper conforming to each style protocol it supports.
-
-```swift
-struct ModifiedStyle<Style, Modifier: ViewModifier>: DynamicProperty {
-    var style: Style
-    var modifier: Modifier
-}
-
-extension ModifiedStyle: RangeSliderStyle where Style: RangeSliderStyle {
-    func makeBody(configuration: RangeSliderStyleConfiguration) -> some View {
-        RangeSlider(configuration)
-            .rangeSliderStyle(style)
-            .modifier(modifier)
-    }
-}
-
-extension RangeSliderStyle {
-    func modifier(_ modifier: some ViewModifier) -> some RangeSliderStyle {
-        ModifiedStyle(style: self, modifier: modifier)
-    }
-}
-```
-
-Then a single `ViewModifier` (e.g. `FontModifier(font: …)`) can be applied to any styleable component via `.someStyle.modifier(FontModifier(font: .rounded))`.
-
----
-
-## 7. Style propagation into sheets and modals
+## 5. Style propagation into sheets and modals
 
 SwiftUI does not propagate style environment values across all modal presentation boundaries (`.sheet`, `.fullScreenCover`, `.popover` outside a `NavigationStack`). On those platforms, restate the styles inside the presented view, or wrap the presenter in a `UIHostingController`-backed `UIViewControllerRepresentable` that re-injects them.
 
@@ -331,7 +227,7 @@ For most apps, the practical answer is: apply styles at the root (`ContentView`)
 
 ---
 
-## 8. File layout
+## 6. File layout
 
 Custom-component styling files live next to the component or under `Common/Styles/`, mirroring the rules in the main skill:
 
@@ -343,22 +239,22 @@ Common/
 │   ├── RangeSliderStyle.swift               ← protocol + environment + modifier + resolve
 │   └── Styles/
 │       ├── DefaultRangeSliderStyle.swift
-│       ├── VerticalRangeSliderStyle.swift
-│       └── CardRangeSliderStyle.swift
+│       └── VerticalRangeSliderStyle.swift
 ```
 
 Shorthand `static var`/`static func` extensions live in the same file as the concrete style they expose — never in a shared "shorthands" file. The rule is: the file that defines `VerticalRangeSliderStyle` is also the file that defines `.vertical`.
 
 ---
 
-## 9. Decision checklist
+## 7. Decision checklist
 
 Before adding a new component or style, walk the checklist:
 
 1. Is there an existing component with the same data and structure? → Add a style, do not fork.
 2. Is the difference reachable through `@Environment` (`controlSize`, `tint`, `colorScheme`)? → Honour the environment, do not add a parameter.
-3. Does the new style modify an existing style (font tweak, wrapper, decoration)? → Configuration initialiser + composable style, not a copy.
-4. Is the modification useful across multiple components (font, label style, shimmer)? → `ViewModifier` + `ModifiedStyle` wrapper, not per-component duplication.
-5. Is the component used in only one place today? → Keep it inline; extract when the second use lands.
+3. Does the new style change visual treatment only? → Add a new style implementing the protocol with its own `makeBody`. Write it from scratch, applied via dot syntax.
+4. Is the component used in only one place today? → Keep it inline; extract when the second use lands.
 
 If a fork still feels right after walking the checklist, the structural difference is real — fork the component, not the style.
+
+This skill encodes the stock-SwiftUI shape of styles: each style is a self-contained `makeBody`. **Style composition** — modifying an existing style by wrapping it, maintaining a stack of styles in the environment, or sharing a `ViewModifier` across multiple style protocols — is intentionally not part of this pattern. Apple does not use composition in stock SwiftUI; if a new look needs more than the current style provides, write a new style.

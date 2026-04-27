@@ -4,6 +4,22 @@ All notable changes to the `swiftui-mv-architecture` skill are documented in thi
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and the format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.0] - 2026-04-27
+
+### Changed
+
+- Aligned the styling sections to **stock SwiftUI's shape only** — one `makeBody` per style, applied via enum-like dot syntax, no composition.
+- `references/style-protocols.md` rewritten: complete alphabetical list of the 18 customisable style protocols (with `makeBody`) and the 13 non-customisable ones (where you can only choose between Apple's concrete styles, not write your own); enum-like dot syntax now framed as Apple's official recommendation citing SE-0299 (Extending Static Member Lookup in Generic Contexts), with the `RoundedBorderTextFieldStyle()` → `.roundedBorder` before/after; new `MyLabelStyle` worked example showing both `static var` and `static func` shorthands on the same style.
+- `SKILL.md` "Reusable styles (built-in views)" section now flags enum-like dot syntax as Apple's recommendation per SE-0299 and explicitly states style composition is not in scope.
+
+### Removed
+
+- **Composable styles** for custom components are no longer part of this skill. Removed sections from `references/custom-component-styling.md`:
+  - Configuration-initialiser composition (modifying an existing style by wrapping it).
+  - Style-stack mechanics in the environment for composable propagation.
+  - Cross-component `ModifiedStyle`/`ViewModifier` reuse pattern.
+- These patterns are intentionally out of scope because Apple does not use composition in stock SwiftUI. If a new look needs more than the current style provides, **write a new style** instead of wrapping an existing one.
+
 ## [1.1.0] - 2026-04-26
 
 ### Added
@@ -43,5 +59,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Reference files: `custom-dynamic-properties.md`, `dependency-injection.md`, `capability-pattern.md`, `refactoring-from-mvvm.md`, `why-not-tca.md`, `testing-views.md`, `state-ownership-decisions.md`, `file-organization.md`.
 - GitHub Actions release workflow that zips the skill on every `v*` tag push.
 
+[1.2.0]: https://github.com/redhotbits/swiftui-mv-architecture/releases/tag/v1.2.0
 [1.1.0]: https://github.com/redhotbits/swiftui-mv-architecture/releases/tag/v1.1.0
 [1.0.0]: https://github.com/redhotbits/swiftui-mv-architecture/releases/tag/v1.0.0

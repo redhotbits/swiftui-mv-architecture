@@ -2,6 +2,8 @@
 
 Use this file when extracting visual treatment for a built-in styleable view (`Button`, `Toggle`, `Label`, etc.) into a reusable `*Style` type. For making your own custom components styleable, see `custom-component-styling.md` instead.
 
+This skill matches what stock SwiftUI does: one `makeBody`, applied through enum-like dot syntax. Style **composition** (wrapping an existing style with a modifier) is intentionally not part of this skill — Apple does not use that pattern in stock SwiftUI.
+
 ## When to extract
 
 Extract to `Common/Styles/` as soon as a visual treatment:
@@ -38,112 +40,142 @@ Common/
         └── IconLabelStyle.swift
 ```
 
-## Style protocols with a customisable `makeBody`
+## Customisable styles (with `makeBody`)
 
-| Protocol | Customises |
-|---|---|
-| `ButtonStyle` | Pressable controls with a label |
-| `PrimitiveButtonStyle` | Full gesture control (custom trigger logic) |
-| `ToggleStyle` | On/off controls |
-| `LabelStyle` | Icon + title pairs |
-| `ProgressViewStyle` | Determinate and indeterminate progress |
-| `GaugeStyle` | Scalar value indicators |
-| `GroupBoxStyle` | Labelled container boxes |
-| `DisclosureGroupStyle` | Expandable sections |
-| `MenuStyle` | Drop-down menus |
-| `ControlGroupStyle` | Related control clusters |
-| `FormStyle` | Form layout containers |
-| `LabeledContentStyle` | Label + content pairs |
-| `NavigationSplitViewStyle` | Sidebar/detail split |
-| `DatePickerStyle` | Date and time pickers |
-| `TextEditorStyle` | Multi-line text editors |
-| `TableStyle` | Data tables |
-| `ProductViewStyle` | StoreKit product views |
-| `SubscriptionStoreControlStyle` | StoreKit subscription controls |
+These protocols expose `makeBody(configuration:)`. Conform a struct to one of them to write your own style.
+
+- `ButtonStyle`
+- `ControlGroupStyle`
+- `DatePickerStyle`
+- `DisclosureGroupStyle`
+- `FormStyle`
+- `GaugeStyle`
+- `GroupBoxStyle`
+- `LabeledContentStyle`
+- `LabelStyle`
+- `MenuStyle`
+- `NavigationSplitViewStyle`
+- `PrimitiveButtonStyle`
+- `ProductViewStyle`
+- `ProgressViewStyle`
+- `SubscriptionStoreControlStyle`
+- `TableStyle`
+- `TextEditorStyle`
+- `ToggleStyle`
+
+## Non-customisable styles (no `makeBody`)
+
+These protocols **do not expose `makeBody`** — you cannot write your own style for these views. Choose between Apple's concrete styles (e.g. `.plain`, `.bordered`, `.inset`).
+
+- `AccessibilityQuickActionStyle`
+- `IndexViewStyle`
+- `ListStyle`
+- `MenuBarExtraStyle`
+- `MenuButtonStyle`
+- `NavigationViewStyle`
+- `PickerStyle`
+- `ShapeStyle`
+- `SubscriptionOptionGroupStyle`
+- `TabViewStyle`
+- `TextFieldStyle`
+- `WindowStyle`
+- `WindowToolbarStyle`
+
+If a design ask requires customising one of these (e.g. a fully custom list cell layout), the answer is to compose your own view from scratch — not to fight the protocol.
+
+## Enum-like style shorthand (Apple's official recommendation)
+
+Since Swift 5.5 (introduced at WWDC '21), styles use [SE-0299: Extending Static Member Lookup in Generic Contexts](https://github.com/apple/swift-evolution/blob/main/proposals/0299-extend-generic-static-member-lookup.md) to expose enum-like dot syntax. **The official Apple documentation explicitly recommends using these enum-like styles instead of constructing the style type directly.**
+
+```swift
+struct ExampleView: View {
+    @State var name = ""
+
+    var body: some View {
+        // ❌ Before Swift 5.5 — type initializer
+        TextField("", text: $name)
+            .textFieldStyle(RoundedBorderTextFieldStyle())
+
+        // ✅ Starting with Swift 5.5 — enum-like shorthand
+        TextField("", text: $name)
+            .textFieldStyle(.roundedBorder)
+    }
+}
+```
+
+Because the change lives in the language, enum-like styles work on any OS that already has the underlying style type — they are not gated by deployment target.
+
+Apply the same pattern to your own styles:
+- **`static var`** for styles that take no parameters.
+- **`static func`** for styles that take parameters.
 
 ## Implementation pattern
 
 Every style file contains three things in this order:
 
-1. A doc comment explaining what the style does and when to use it
-2. The style struct conforming to the protocol
-3. A shorthand static extension so the style can be used with dot syntax — the same way built-in styles like `.plain` or `.bordered` work
+1. A doc comment explaining what the style does and when to use it.
+2. The style struct conforming to the protocol.
+3. Constrained `static var` and/or `static func` extensions on the protocol so the style can be used with dot syntax.
 
 ```swift
-// Common/Styles/Button/CardButtonStyle.swift
+// Common/Styles/Label/MyLabelStyle.swift
 import SwiftUI
 
-/// Full-width card button: white background, rounded corners, subtle shadow.
-/// Use for standalone actions that sit at the bottom of a scroll view
-/// (e.g. Sign Out, Save, Continue).
-struct CardButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .frame(maxWidth: .infinity)
-            .background(Color(.systemBackground))
-            .clipShape(.rect(cornerRadius: 16))
-            .shadow(
-                color: .black.opacity(0.04),
-                radius: 6,
-                x: 0,
-                y: 2
-            )
-            .opacity(configuration.isPressed ? 0.7 : 1)
+/// Vertical label with a coloured circular background.
+/// Use for badge-style labels in icon grids.
+struct MyLabelStyle: LabelStyle {
+    let color: Color
+
+    init(color: Color = .green) {
+        self.color = color
     }
-}
-
-extension ButtonStyle where Self == CardButtonStyle {
-    /// Full-width card button. See ``CardButtonStyle``.
-    static var card: CardButtonStyle { CardButtonStyle() }
-}
-```
-
-The shorthand extension constrains `Self` to the concrete style type so Swift resolves the dot syntax without ambiguity. The call site becomes:
-
-```swift
-Button { } label: {
-    Text("Sign Out")
-        .font(.subheadline.bold())
-        .foregroundStyle(.red)
-        .padding(.vertical, 16)
-}
-.buttonStyle(.card)
-```
-
-Apply the same pattern to every other style protocol — `ToggleStyle`, `LabelStyle`, etc. — with a `static var` or `static func` (when the style takes parameters) on a constrained extension of the protocol.
-
-## Parameterised styles — `static func`, not `static var`
-
-When the visual treatment depends on runtime data (e.g. a selected/unselected chip), pass the data as a stored property and expose it via `static func`:
-
-```swift
-struct ChipButtonStyle: ButtonStyle {
-    let isSelected: Bool
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(isSelected ? Color.accentColor : .clear)
-            .foregroundStyle(isSelected ? .white : .primary)
-            .clipShape(.capsule)
+        VStack(spacing: 10) {
+            configuration.title
+                .minimumScaleFactor(0.2)
+                .lineLimit(1)
+
+            configuration.icon
+        }
+        .frame(width: 100, height: 100)
+        .padding(20)
+        .background(Circle().fill(color))
     }
 }
 
-// parameterised shorthand — static func, not static var
-extension ButtonStyle where Self == ChipButtonStyle {
-    static func chip(isSelected: Bool) -> ChipButtonStyle {
-        ChipButtonStyle(isSelected: isSelected)
+extension LabelStyle where Self == MyLabelStyle {
+    /// Default `MyLabelStyle` (green background).
+    static var myLabelStyle: MyLabelStyle {
+        MyLabelStyle()
+    }
+
+    /// `MyLabelStyle` with a custom background colour.
+    static func myLabelStyle(_ color: Color) -> MyLabelStyle {
+        MyLabelStyle(color: color)
     }
 }
-
-// call site reads like natural language
-.buttonStyle(.chip(isSelected: isSelected))
 ```
+
+Call sites use the dot syntax for both forms:
+
+```swift
+HStack {
+    // ✅ enum-like, no parameter
+    Label("Club", systemImage: "suit.club.fill")
+        .labelStyle(.myLabelStyle)
+
+    // ✅ enum-like, with parameter
+    Label("Spade", systemImage: "suit.spade.fill")
+        .labelStyle(.myLabelStyle(.yellow))
+}
+```
+
+The constrained extension (`where Self == MyLabelStyle`) is required so Swift resolves the dot syntax without ambiguity. Apply this same shape to every style protocol — `ButtonStyle`, `ToggleStyle`, `GroupBoxStyle`, etc.
 
 ## Reading the environment inside a style
 
-Styles applied to **built-in** SwiftUI views (the ones in the table above) can use `@Environment` directly inside `makeBody` — Apple installs the style as a `View` internally, so property wrappers resolve correctly.
+Styles applied to **built-in** SwiftUI views (the customisable protocols listed above) can use `@Environment` directly inside `makeBody` — Apple installs the style as a `View` internally, so property wrappers resolve correctly.
 
 ```swift
 struct FadeWhenDisabledButtonStyle: ButtonStyle {
