@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git tag *)",
+      "Bash(git check-ignore *)",
+      "Bash(git push *)",
+      "Bash(gh auth *)",
+      "Bash(gh release *)",
+      "Bash(git -c credential.helper= -c 'credential.helper=!f\\(\\) { echo \"username=mirkokg\"; echo \"password=$GH_TOKEN\"; }; f' push origin main)",
+      "Bash(git -c credential.helper= -c 'credential.helper=!f\\(\\) { echo \"username=mirkokg\"; echo \"password=$GH_TOKEN\"; }; f' push origin v1.2.0)"
+    ]
+  }
+}

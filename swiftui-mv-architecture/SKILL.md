@@ -21,7 +21,9 @@ Don't read this whole file end-to-end. Route to the section you need.
 | Building or refactoring a custom view/component | Reusable components + `references/custom-component-styling.md` |
 | Styling a built-in view (`Button`, `Toggle`, `Label`, …) | Reusable styles + `references/style-protocols.md` |
 | Custom source of truth (persistence, system bridge, sensor) | `references/custom-dynamic-properties.md` |
+| Using `@Query` / SwiftData fetch in a non-trivial parent | `references/swiftdata-query.md` |
 | Injecting a service / dependency | `references/dependency-injection.md` + `references/capability-pattern.md` |
+| Building HTTP requests (with `declarative-requests-swift`) | `references/declarative-requests-networking.md` |
 | Writing tests for a SwiftUI view | `references/testing-views.md` |
 | Considering a class for new code | "When classes ARE allowed" section |
 | Writing a custom `init` for a View | "View init: data plumbing only" section |
@@ -101,6 +103,37 @@ struct CounterView: View {
 ```
 
 Why this works: `CounterLogic` is disposable and stateless — recreating it on every body evaluation costs nothing. `state` lives in `@State` where SwiftUI manages its lifecycle. Mutations are expressed as closures the UI calls directly — no enum dispatch, no reducer, no `send()`.
+
+**Don't let `CounterState` grow into a `ViewState` umbrella.** A single-field state struct works because the field has real meaning — `count` *is* the counter's model. The trap is treating "view state" itself as the grouping and bundling unrelated screen properties together because they render on the same screen:
+
+```swift
+// ❌ accidental UI grouping — split the view tomorrow and this struct can't split with it
+struct SearchViewState {
+    var results: [Result] = []
+    var query: String = ""
+    var isLoading = false
+    var errorMessage: String?
+    var scrollTargetId: Int?
+}
+
+struct SearchLogic {
+    @Binding var state: SearchViewState  // every method gets the whole struct — interface segregation broken
+    func load() async { ... }
+}
+```
+
+The umbrella struct is brittle (you can't split it when the view splits) and forces every method on `Logic` to receive fields it doesn't touch. Once state outgrows a single meaningful field, **inline `@State`s on the view** and move helpers into a `<View>+Logic.swift` file as free functions. Two valid shapes — pick per function:
+
+1. **Return a result struct.** Best for one-shot async loaders. The view assigns the result into individual `@State`s in one place.
+   ```swift
+   func loadResults(query: String, repo: Repository) async throws -> LoadedResults
+   ```
+2. **Take individual `Binding`s and mutate.** Best for interactive callbacks that touch multiple fields plus side channels (storage, analytics, navigation).
+   ```swift
+   func selectStation(_ s: Station, selected: Binding<Station>, destination: Binding<Destination?>, storage: StorageCapability)
+   ```
+
+Group properties into a struct only when they share real domain meaning — a result payload, a capability of related bindings, a `Repository` of operations against the same backend. Never because they happen to coexist on one screen. UI is composable; today's screen is tomorrow's two screens.
 
 ### 3. Model conforms to `View` (the "MV" in MV)
 
@@ -262,6 +295,8 @@ See `references/app-entry-point.md` for the `@UIApplicationDelegateAdaptor` snip
 ## Reusable components
 
 **Reuse first. Fork last.** Before creating a new view, check whether an existing component already handles the case — even when "only the look is different." Forking is the most common source of UI duplication in SwiftUI codebases.
+
+**Components are purely UI** — no business logic, no service dependencies, no `@Environment` reads of capabilities. They take data and closures in, render, and emit events out. A component that imports `UserService` is a screen wearing a component's clothes. Test: if you can't construct it in a `#Preview` from inline literals alone, it isn't a component.
 
 The decision is mechanical:
 
@@ -450,6 +485,23 @@ When a class is unavoidable, host it inside SwiftUI via `@State var x = MyClass(
 
 Never reach for a class to "organise logic", "share state across views", "make it testable", or "separate concerns". Those are all solved better — and natively — by structs, `@Environment`, custom `DynamicProperty`, or a capability struct.
 
+### Bridging callback / delegate APIs to capabilities
+
+The cases above (delegate protocols, completion-handler SDKs, `NotificationCenter`, frameworks like `CLLocationManager` or `CBCentralManager`) hand you class-shaped, callback-shaped APIs. Bridge them before they reach the rest of the app:
+
+1. Wrap one-shot callbacks with `withCheckedThrowingContinuation` to expose an `async throws` method.
+2. Wrap event streams with `AsyncStream` / `AsyncThrowingStream`, produced from delegate callbacks.
+3. Hide the class behind a capability struct that exposes those async surfaces as closures:
+
+```swift
+struct LocationCapability {
+    var requestAuthorization: () async -> CLAuthorizationStatus
+    var updates: () -> AsyncStream<CLLocation>
+}
+```
+
+The class is sealed off — it talks to one capability struct and nothing else. Views, other capabilities, and feature code only ever import the struct. This is what keeps the rest of the codebase value-typed and pure-MV even when one corner has to be a class because Apple says so. Choose isolation by the actual concurrency shape (`@MainActor` for UI-bound work, `actor` for genuinely concurrent inputs) — don't default to either reflexively.
+
 ## Triage: what to do when you see existing code
 
 1. **New code, no MVVM yet** → default to patterns 1–6 above. If the user asks for an architecture, guide them toward pure MV — do not propose MVVM, Clean, or TCA.
@@ -475,8 +527,10 @@ When the task touches one of these areas, read the corresponding file before wri
 **Architecture & state:**
 - `references/state-ownership-decisions.md` — Decision tree for where to put state: `@State`, `@Binding`, `@Environment`, custom `DynamicProperty`, or a hosting class of last resort.
 - `references/custom-dynamic-properties.md` — Building custom sources of truth (the `BrightnessWrapper` pattern, mutable storage in immutable structs, `update()` semantics).
+- `references/swiftdata-query.md` — Dependency-keyed recreation of `@Query` (and any `DynamicProperty` whose init does real work). The `IndexedSotView` boundary that decouples source-of-truth recreation from parent recompute frequency.
 - `references/dependency-injection.md` — `@Environment` + `EnvironmentKey` vs protocol/mock vs capability struct. Covers previews, tests, and production wiring.
 - `references/capability-pattern.md` — Closures-as-data in depth, composition, ad-hoc polymorphism, when to use a protocol instead.
+- `references/declarative-requests-networking.md` — Layering `declarative-requests-swift` into MV: Repository as a struct of `@RequestBuilder` closures, domain capability composing Repository + network closure + decoder, per-layer testing.
 
 **Migration:**
 - `references/refactoring-from-mvvm.md` — Step-by-step migrations with before/after code (counter, form, list/detail, networking-backed screen, navigation).

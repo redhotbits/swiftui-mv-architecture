@@ -139,6 +139,8 @@ struct ComposableNetworking {
 
 Everything — including the *networking layer itself* — is a value (`struct` holding closures). State (`bearerToken`) is injected as a `@Binding`. No class, no framework. The final `composition` is just a function `(URLRequest) async throws -> (Data, URLResponse)` — the same shape as `URLSession.shared.data(for:)` — that any layer above can consume without knowing about auth.
 
+When request *construction* (URL, headers, body, auth) is non-trivial or shared across endpoints, lift it into its own capability — a Repository struct of `@RequestBuilder` closures returning `URLRequest`. The network closure above stays as the executor; the Repository is its peer, not its replacement. See `declarative-requests-networking.md` for the four-layer split (View → domain capability → Repository + network closure + decoder) and per-layer testing.
+
 ## Canned instances
 
 For each capability, provide canned instances:

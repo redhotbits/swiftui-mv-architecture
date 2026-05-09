@@ -149,6 +149,10 @@ struct RootView: View {
 
 This is the `Binding<T>` analogue of dependency injection: the sub-view depends on an abstraction (the projection), and any source of truth — real, preview, or test — can supply it.
 
+## When the wrapper's `init` depends on parent state
+
+If a `DynamicProperty`'s construction does real work (wires a subscription, builds a fetch pipeline, decodes a resource) and depends on parent state, you have a second problem on top of the ones this file solves: every parent recompute will reconstruct the wrapper, re-running that work for reasons unrelated to the actual dependency. SwiftData's `@Query` is the canonical case — see `swiftdata-query.md` for the `IndexedSotView` boundary that gates recreation by an explicit equatable key. The principle generalises to any wrapper whose init isn't a free assignment.
+
 ## Checklist for a new `DynamicProperty`
 
 - [ ] Struct, not class.
